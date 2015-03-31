@@ -8,14 +8,31 @@
 #include "net_include.h"
 #include <sys/time.h>
 #include <set>
+#include <forward_list>
 #include <map>
 #include <functional>
 #include <memory>
 #include "time_util.h"
+#include <vector>
 
 using namespace std;
 
 using fd_callback = function<void (uint32_t)>;
+
+namespace loop_help
+{
+    template<typename T>
+    class xref_wrap : public std::reference_wrapper<T>
+    {
+    public:
+        xref_wrap(T& x) : std::reference_wrapper<T>(x) {}
+        xref_wrap(const reference_wrapper<T>& x) : std::reference_wrapper<T>(x) {}
+        xref_wrap(const xref_wrap<T>& other) : std::reference_wrapper<T>(static_cast<const std::reference_wrapper<T>&>(other)) {}
+        bool operator<(xref_wrap const rhs) const {
+            return this->get() < rhs.get();
+        }   
+    };
+}
 
 class Loop {
 public:
@@ -38,8 +55,9 @@ private:
     const static int MAX_EVENTS = 250;
     map<int, shared_ptr<fd_callback>> fd_to_cb;
     function<void (int, int)> default_cb;
-    map<pair<timeval, string>, pair<function<void ()>, map<string, timeval>::iterator>> timers;
-    map<string, timeval> id_to_timer;
+    map<pair<timeval, loop_help::xref_wrap<const string>>, tuple<function<void ()>, map<loop_help::xref_wrap<const string>, timeval>::iterator, shared_ptr<string>>> timers;
+    map<loop_help::xref_wrap<const string>, timeval> id_to_timer;
+    forward_list<shared_ptr<fd_callback>> deleted_callbacks;
     set<int> deleted_fds;
     bool done;
     bool handling_events;

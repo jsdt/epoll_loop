@@ -58,15 +58,24 @@ void Loop::change_cb(int fd, fd_callback cb) {
 int Loop::del_fd(int fd) {
     auto old = fd_to_cb.find(fd);
     if (old == fd_to_cb.end()) return 0;
+    
+    //If epoll_wait has already been called, must make sure an event which was already triggered is not called
+    if (handling_events && (deleted_fds.find(fd) != deleted_fds.end())) {
+        *old->second = nullptr;
+        deleted_callbacks.push_front(old->second);
+    }
     fd_to_cb.erase(old);
-    if (!handling_events) deleted_fds.insert(fd);
     return epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
 }
 
 void Loop::remove_event(const string &id) {
+    //auto idr = cref(id);
+    //reference_wrapper2<const string> idr(id);
     auto it = id_to_timer.find(id);
     if (it == id_to_timer.end()) return;
     auto key = timers.find(make_pair(it->second, it->first));
+    //auto key = timers.find(make_pair(get<1>(it), get<0>(it)));
+    id_to_timer.erase(it);
     timers.erase(key);
 }
 
@@ -80,8 +89,10 @@ int Loop::handle_events() {
         if (timers.size() > 0) {
             gettimeofday(&now, NULL);
             for (auto it = timers.begin(); it != timers.end() && it->first.first < now; it = timers.begin()) {
-                auto cb = it->second.first;
-                id_to_timer.erase(it->second.second);
+                /* auto cb = it->second.first; */
+                auto cb = get<0>(it->second);
+                /* id_to_timer.erase(it->second.second); */
+                id_to_timer.erase(get<1>(it->second));
                 timers.erase(it);
                 cb();
                 if (done) return 0;
@@ -100,14 +111,15 @@ int Loop::handle_events() {
         if (fd_to_cb.size() > 0) {
             n = epoll_wait(efd, events, Loop::MAX_EVENTS - 1, timeout);
             handling_events = true;
+            deleted_callbacks.clear();
             deleted_fds.clear();
             if (n == -1) {
                 //Oh No!
                 return -1;
             }
             for (int i = 0; i < n; i++) {
-                if (deleted_fds.find(events[i].data.fd) != deleted_fds.end()) continue;
                 auto cb = (fd_callback *) events[i].data.ptr;
+                if (!(*cb)) continue;
                 (*cb)(events[i].events);
                 if (done) {
                     handling_events = false;
@@ -136,8 +148,13 @@ void Loop::queue_event(timeval delta, std::function<void ()> cb, const string &i
     timeval now;
     gettimeofday(&now, NULL);
     delta = delta + now;
-    auto ins = id_to_timer.insert(make_pair(id, delta));
+    shared_ptr<string> id_ptr = make_shared<string>(id);
+    /* shared_ptr<string> id_ptr = shared_ptr<string>(new (id); */
+    auto id_ref = cref(*id_ptr);
+    auto ins = id_to_timer.insert(make_pair(id_ref, delta));
+    if (id < id) cout << "id" << endl;
     if (!ins.second) return;
-    timers.insert(make_pair(make_pair(delta, id), make_pair(cb, ins.first)));
+    timers.insert(make_pair(make_pair(delta, id_ref), make_tuple(cb, ins.first, id_ptr)));
+    /* timers.insert(make_pair(make_pair(delta, id), make_pair(cb, ins.first))); */
 }
 
