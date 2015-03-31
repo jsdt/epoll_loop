@@ -17,16 +17,25 @@ Loop::Loop()
 }
 
 Loop::~Loop() {
+    for (auto it = fd_to_cb.begin(); it != fd_to_cb.end(); it++) {
+        delete it->second;
+    }
+    for (auto it = deleted_callbacks.begin(); it != deleted_callbacks.end(); it++) {
+        delete *it;
+    }
 }
 
-int Loop::add_fd(int fd, uint32_t events, fd_callback cb) {
-    shared_ptr<fd_callback> ptr = make_shared<fd_callback>(cb);
+int Loop::add_fd(int fd, uint32_t events, const fd_callback &cb) {
+    //shared_ptr<fd_callback> ptr = make_shared<fd_callback>(cb);
+    auto ptr = new fd_callback(cb);
 
     epoll_event event;
     event.events = events;
     event.data.fd = fd;
-    event.data.ptr = (void *) ptr.get();
+    /* event.data.ptr = (void *) ptr.get(); */
+    event.data.ptr = (void *) ptr;
     if (-1 == epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event)) {
+        delete ptr;
         return -1;
     }
     fd_to_cb.insert(std::make_pair(fd, ptr));
@@ -39,9 +48,11 @@ int Loop::mod_fd(int fd, uint32_t events, fd_callback cb) {
     epoll_event event;
     event.events = events;
     event.data.fd = fd;
-    event.data.ptr = (void *) old.get();
+    event.data.ptr = (void *) old;
     if (-1 == epoll_ctl(efd, EPOLL_CTL_MOD, fd, &event)) {
         fd_to_cb.erase(fd);
+        // Not sure if the old event may still be registered?
+        delete old;
         return -1;
     }
     return 0;
@@ -51,7 +62,7 @@ void Loop::set_poll_timeout(int millis) {
     poll_timeout = millis;
 }
 
-void Loop::change_cb(int fd, fd_callback cb) {
+void Loop::change_cb(int fd, const fd_callback& cb) {
     *(fd_to_cb[fd]) = cb;
 }
 
@@ -60,9 +71,12 @@ int Loop::del_fd(int fd) {
     if (old == fd_to_cb.end()) return 0;
     
     //If epoll_wait has already been called, must make sure an event which was already triggered is not called
-    if (handling_events && (deleted_fds.find(fd) != deleted_fds.end())) {
+    if (handling_events && (deleted_fds.find(fd) == deleted_fds.end())) {
         *old->second = nullptr;
         deleted_callbacks.push_front(old->second);
+        deleted_fds.insert(fd);
+    } else {
+        delete old->second;
     }
     fd_to_cb.erase(old);
     return epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
@@ -89,9 +103,7 @@ int Loop::handle_events() {
         if (timers.size() > 0) {
             gettimeofday(&now, NULL);
             for (auto it = timers.begin(); it != timers.end() && it->first.first < now; it = timers.begin()) {
-                /* auto cb = it->second.first; */
                 auto cb = get<0>(it->second);
-                /* id_to_timer.erase(it->second.second); */
                 id_to_timer.erase(get<1>(it->second));
                 timers.erase(it);
                 cb();
@@ -111,6 +123,9 @@ int Loop::handle_events() {
         if (fd_to_cb.size() > 0) {
             n = epoll_wait(efd, events, Loop::MAX_EVENTS - 1, timeout);
             handling_events = true;
+            for (auto it = deleted_callbacks.begin(); it != deleted_callbacks.end(); it++) {
+                delete *it;
+            }
             deleted_callbacks.clear();
             deleted_fds.clear();
             if (n == -1) {
@@ -143,6 +158,10 @@ void Loop::exit_loop() {
 void Loop::set_default(std::function<void(int, int)> cb) {
     default_cb = cb;
 }
+/* void Loop::set_default(std::function<void(int, int)> && cb) { */
+/*     cout << "rvalue" << endl; */
+/*     default_cb = cb; */
+/* } */
 
 void Loop::queue_event(timeval delta, std::function<void ()> cb, const string &id) {
     timeval now;
