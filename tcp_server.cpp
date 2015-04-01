@@ -13,16 +13,14 @@ using namespace std::placeholders;
 
 void acceptor(Loop &loop, int s, uint32_t events);
 void handle_message(Loop &loop, int s, uint32_t events);
-void repeated_timeout(Loop &loop, timeval timeout, const string& id);
+void repeated_timeout(Loop &loop, timeval timeout, uintptr_t);
 void handle_timeout(int, int);
 
 int main(void) {
     struct sockaddr_in name;
     int                s;
-    char               mess_buf[MAX_MESS_LEN];
     long               on=1;
 
-    int efd;
     s = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (s<0) {
         perror("Net_server: socket");
@@ -53,7 +51,7 @@ int main(void) {
     loop.add_fd(s, EPOLLIN | EPOLLET, cb);
     loop.set_default(&handle_timeout);
     loop.set_poll_timeout(5000);
-    loop.queue_event(timeval{10,0}, bind(repeated_timeout, ref(loop), timeval{15,0}, "1"), "1");
+    loop.queue_event(timeval{10,0}, bind(repeated_timeout, ref(loop), timeval{15,0}, 1), 1);
     loop.handle_events();
     cout << "got out" << endl;
     exit(0);
@@ -61,13 +59,9 @@ int main(void) {
 
 void acceptor(Loop &loop, int s, uint32_t events) {
     cout << "got called!" << endl;
-    struct sockaddr in_addr;
-    socklen_t in_len;
     int infd;
 
-    in_len = sizeof(in_addr);
     for (;;) {
-        /* infd = accept4(s, &in_addr, &in_len, SOCK_NONBLOCK); */
         infd = accept(s, 0, 0);
         if (infd == -1) {
             if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
@@ -99,7 +93,7 @@ void handle_message(Loop &loop, int s, uint32_t events) {
         return;
     }
     n = recv(s, buf, mess_len, 0);
-    if ( n < mess_len ) {
+    if ( (std::size_t) n < mess_len ) {
         close(s);
         loop.del_fd(s);
     }
@@ -113,7 +107,7 @@ void handle_timeout(int n, int t) {
     }
 }
 
-void repeated_timeout(Loop &loop, timeval timeout, const string &id) {
+void repeated_timeout(Loop &loop, timeval timeout, uintptr_t id) {
     cout << "Hit repeated timeout: " << id << endl;
     loop.queue_event(timeout, bind(repeated_timeout, ref(loop), timeout, id), id);
 }

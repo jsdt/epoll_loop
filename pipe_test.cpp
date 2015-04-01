@@ -38,7 +38,10 @@ void del_other_pipes(int index, uint32_t events) {
     }
 
     int val;
-    read(p[index][0], &val, sizeof(val));
+    if ((std::size_t) read(p[index][0], &val, sizeof(val)) < sizeof(val)) {
+        cout << "Short read" << endl;
+        exit(1);
+    }
     cout << "Pipe: " << index << ", val: " << val << endl;
     if (val == 0) loop.exit_loop();
 

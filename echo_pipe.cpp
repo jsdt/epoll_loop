@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <iostream>
 
+#include <errno.h>
 #include <future>
 #include <functional>
 
@@ -27,7 +28,7 @@ void echo_int(int id, int j, uint32_t events) {
     int n;
     if (events & EPOLLIN) {
         n = read(pin[id][j][0], &buf, sizeof(buf));
-        if (n < sizeof(buf)) {
+        if (((std::size_t) n) < sizeof(buf)) {
             cout << "short read" << endl;
             return;
         }
@@ -38,7 +39,10 @@ void echo_int(int id, int j, uint32_t events) {
         /*     loop.del_fd(pin[id][j+1][0]); */
         /*     loop.add_fd(pin[id][j+1][0], EPOLLIN, bind(echo_int, id, j+1, _1)); */
         /* } */
-        write(pout[id][j][1], &buf, sizeof(buf));
+        if ((std::size_t) write(pout[id][j][1], &buf, sizeof(buf)) < sizeof(buf)) {
+            cout << "short write" << endl;
+            return;
+        }
     } else {
         loop.del_fd(pin[id][j][0]);
         loop.del_fd(pout[id][j][1]);
@@ -52,12 +56,12 @@ void echo_client(int id, int count) {
     int buf;
     for (int i = 0; i < count; i++) {
         for (int j = 0; j < FAN; j++) {
-            if (write(pin[id][j][1], &i, sizeof(i)) < sizeof(i)) {
+            if ((std::size_t) write(pin[id][j][1], &i, sizeof(i)) < sizeof(i)) {
                 cout << "problem writing" << endl;
             }
         }
         for (int j = 0; j < FAN; j++) {
-            if (read(pout[id][j][0], &buf, sizeof(buf)) < sizeof(buf)) {
+            if ((std::size_t) read(pout[id][j][0], &buf, sizeof(buf)) < sizeof(buf)) {
                 cout << "problem reading" << endl;
             }
         }
@@ -104,7 +108,7 @@ int main() {
 
     int capture;
     std::function<void (int, int)> derp2 = [&capture](int a, int b) { cout << a << endl; };
-    loop.queue_event(timeval{10,0}, &derp, "");
+    loop.queue_event(timeval{10,0}, &derp, 0);
     std::future<void> result[CLIENTS];
     std::future<int> server(std::async(std::launch::async, bind(&Loop::handle_events, ref(loop))));
 

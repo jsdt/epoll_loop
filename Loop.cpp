@@ -8,8 +8,8 @@
 #include <memory>
 
 Loop::Loop()
-    : poll_timeout(-1),
-        handling_events(false) {
+    :   handling_events(false),
+         poll_timeout(-1)   {
     efd = epoll_create1(0);
     if (efd == -1) {
     }
@@ -81,7 +81,7 @@ int Loop::del_fd(int fd) {
     return epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
 }
 
-void Loop::remove_event(const string &id) {
+void Loop::remove_event(uintptr_t id) {
     auto it = id_to_timer.find(id);
     if (it == id_to_timer.end()) return;
     auto key = timers.find(make_pair(it->second, it->first));
@@ -99,8 +99,8 @@ int Loop::handle_events() {
         if (timers.size() > 0) {
             gettimeofday(&now, NULL);
             for (auto it = timers.begin(); it != timers.end() && it->first.first < now; it = timers.begin()) {
-                auto cb = get<0>(it->second);
-                id_to_timer.erase(get<1>(it->second));
+                auto cb = it->second.first;
+                id_to_timer.erase(it->second.second);
                 timers.erase(it);
                 cb();
                 if (done) return 0;
@@ -155,15 +155,12 @@ void Loop::set_default(std::function<void(int, int)> cb) {
     default_cb = cb;
 }
 
-void Loop::queue_event(timeval delta, std::function<void ()> cb, const string &id) {
+void Loop::queue_event(timeval delta, std::function<void ()> cb, uintptr_t id) {
     timeval now;
     gettimeofday(&now, NULL);
     delta = delta + now;
-    shared_ptr<string> id_ptr = make_shared<string>(id);
-    auto id_ref = cref(*id_ptr);
-    auto ins = id_to_timer.insert(make_pair(id_ref, delta));
-    if (id < id) cout << "id" << endl;
+    auto ins = id_to_timer.insert(make_pair(id, delta));
     if (!ins.second) return;
-    timers.insert(make_pair(make_pair(delta, id_ref), make_tuple(cb, ins.first, id_ptr)));
+    timers.insert(make_pair(make_pair(delta, id), make_pair(cb, ins.first)));
 }
 

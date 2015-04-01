@@ -40,14 +40,14 @@ public:
     ~Loop();
     //Will be called with the number of events returned by epoll_wait and the number of timers that were called
     void set_default(function<void (int events, int timers_called)> cb);
-    //void set_default(function<void (int events, int timers_called)>&& cb);
     void set_poll_timeout(int millis);
     int add_fd(int fd, uint32_t events, const fd_callback& cb);
     void change_cb(int fd, const fd_callback& cb);
     int mod_fd(int fd, uint32_t events, fd_callback cb);
     int del_fd(int fd);
-    void queue_event(timeval delta, function<void ()>, const string& id);
-    void remove_event(const string& id);
+    //void queue_event(timeval delta, function<void ()>, const string& id);
+    void queue_event(timeval delta, function<void ()>, uintptr_t id);
+    void remove_event(uintptr_t id);
     int handle_events();
     void exit_loop();
 
@@ -56,8 +56,8 @@ private:
     const static int MAX_EVENTS = 1000;
     map<int,fd_callback*> fd_to_cb;
     function<void (int, int)> default_cb;
-    map<pair<timeval, loop_help::xref_wrap<const string>>, tuple<function<void ()>, map<loop_help::xref_wrap<const string>, timeval>::iterator, shared_ptr<string>>> timers;
-    map<loop_help::xref_wrap<const string>, timeval> id_to_timer;
+    map<pair<timeval, uintptr_t>, pair<function<void ()>, map<uintptr_t, timeval>::iterator>> timers;
+    map<uintptr_t, timeval> id_to_timer;
     forward_list<fd_callback*> deleted_callbacks;
     set<int> deleted_fds;
     bool done;
