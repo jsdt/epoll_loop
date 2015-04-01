@@ -44,18 +44,6 @@ void del_other_pipes(int index, uint32_t events) {
 
 }
 
-template<typename T>
-T f(T t) { return t; }
-
-template<typename T=int>
-bool f(int i) { return i > 0; }
-
-template<typename T=bool>
-int f(bool i) { return 0; }
-
-template<typename T>
-auto f(T t) -> decltype(f<T>(t)) { return f<T>(t); }
-
 int main() {
     //Run a simple test with some pipes
 

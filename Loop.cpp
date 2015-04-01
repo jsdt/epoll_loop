@@ -12,7 +12,6 @@ Loop::Loop()
         handling_events(false) {
     efd = epoll_create1(0);
     if (efd == -1) {
-        //Error
     }
 }
 
@@ -83,12 +82,9 @@ int Loop::del_fd(int fd) {
 }
 
 void Loop::remove_event(const string &id) {
-    //auto idr = cref(id);
-    //reference_wrapper2<const string> idr(id);
     auto it = id_to_timer.find(id);
     if (it == id_to_timer.end()) return;
     auto key = timers.find(make_pair(it->second, it->first));
-    //auto key = timers.find(make_pair(get<1>(it), get<0>(it)));
     id_to_timer.erase(it);
     timers.erase(key);
 }
@@ -158,22 +154,16 @@ void Loop::exit_loop() {
 void Loop::set_default(std::function<void(int, int)> cb) {
     default_cb = cb;
 }
-/* void Loop::set_default(std::function<void(int, int)> && cb) { */
-/*     cout << "rvalue" << endl; */
-/*     default_cb = cb; */
-/* } */
 
 void Loop::queue_event(timeval delta, std::function<void ()> cb, const string &id) {
     timeval now;
     gettimeofday(&now, NULL);
     delta = delta + now;
     shared_ptr<string> id_ptr = make_shared<string>(id);
-    /* shared_ptr<string> id_ptr = shared_ptr<string>(new (id); */
     auto id_ref = cref(*id_ptr);
     auto ins = id_to_timer.insert(make_pair(id_ref, delta));
     if (id < id) cout << "id" << endl;
     if (!ins.second) return;
     timers.insert(make_pair(make_pair(delta, id_ref), make_tuple(cb, ins.first, id_ptr)));
-    /* timers.insert(make_pair(make_pair(delta, id), make_pair(cb, ins.first))); */
 }
 

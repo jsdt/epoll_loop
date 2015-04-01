@@ -53,7 +53,7 @@ public:
 
 private:
     int efd;
-    const static int MAX_EVENTS = 250;
+    const static int MAX_EVENTS = 1000;
     map<int,fd_callback*> fd_to_cb;
     function<void (int, int)> default_cb;
     map<pair<timeval, loop_help::xref_wrap<const string>>, tuple<function<void ()>, map<loop_help::xref_wrap<const string>, timeval>::iterator, shared_ptr<string>>> timers;
@@ -66,5 +66,5 @@ private:
 
 };
 
-
 #endif //_EPOLL_TCP_EPOLLLOOP_H_
+

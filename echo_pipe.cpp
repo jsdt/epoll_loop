@@ -7,8 +7,8 @@
 #include <future>
 #include <functional>
 
-#define CLIENTS 4
-#define FAN 20
+#define CLIENTS 5
+#define FAN 50
 using namespace std;
 using namespace std::placeholders;
 
@@ -31,13 +31,13 @@ void echo_int(int id, int j, uint32_t events) {
             cout << "short read" << endl;
             return;
         }
-        if (j == 2) {
-            // Do this just to test deleting fds while there are pending events for that fd
-            loop.del_fd(pin[id][j+1][0]);
-            loop.add_fd(pin[id][j+1][0], EPOLLIN, bind(echo_int, id, j+1, _1));
-            loop.del_fd(pin[id][j+1][0]);
-            loop.add_fd(pin[id][j+1][0], EPOLLIN, bind(echo_int, id, j+1, _1));
-        }
+        /* if (j == 2) { */
+        /*     // Do this just to test deleting fds while there are pending events for that fd */
+        /*     loop.del_fd(pin[id][j+1][0]); */
+        /*     loop.add_fd(pin[id][j+1][0], EPOLLIN, bind(echo_int, id, j+1, _1)); */
+        /*     loop.del_fd(pin[id][j+1][0]); */
+        /*     loop.add_fd(pin[id][j+1][0], EPOLLIN, bind(echo_int, id, j+1, _1)); */
+        /* } */
         write(pout[id][j][1], &buf, sizeof(buf));
     } else {
         loop.del_fd(pin[id][j][0]);
@@ -108,7 +108,7 @@ int main() {
     std::future<void> result[CLIENTS];
     std::future<int> server(std::async(std::launch::async, bind(&Loop::handle_events, ref(loop))));
 
-    int iters = 1000;
+    int iters = 10000;
     for (int i = 0; i < CLIENTS; i++) {
        result[i] = std::async(std::launch::async, bind(echo_client, i, iters));
     }
